@@ -8,6 +8,7 @@
 #include "ArtPollReply.h"
 #include "ArtTrigger.h"
 #include "ArtSync.h"
+#include "Ethernet.h"
 
 namespace art_net {
 
@@ -47,11 +48,13 @@ public:
 
     OpCode parse()
     {
-#ifdef ARTNET_ENABLE_WIFI
-        if (!isNetworkReady()) {
-            return OpCode::NoPacket;
+// #ifdef ARTNET_ENABLE_WIFI
+        if constexpr (std::is_same<S, WiFiUDP>::value) {
+            if (!isNetworkReady()) {
+                return OpCode::NoPacket;
+            }
         }
-#endif
+// #endif
         size_t size = this->stream->parsePacket();
         if (size == 0) {
             return OpCode::NoPacket;
@@ -422,65 +425,119 @@ private:
         return this->packet.data() + art_trigger::PAYLOAD;
     }
 
-#ifdef ARTNET_ENABLE_WIFI
-    template <typename T = S>
-    auto localIP() -> std::enable_if_t<std::is_same<T, WiFiUDP>::value, IPAddress>
-    {
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
-        if( WiFi.getMode() == WIFI_AP ) {
-            return WiFi.softAPIP();
-        } else {
-            return WiFi.localIP();
-        }
-#else
-        return WiFi.localIP();
-#endif
-    }
-    template <typename T = S>
-    auto subnetMask() -> std::enable_if_t<std::is_same<T, WiFiUDP>::value, IPAddress>
-    {
-#if defined(ARDUINO_ARCH_ESP32)
-        if( WiFi.getMode() == WIFI_AP ) {
-            return WiFi.softAPSubnetMask();
-        } else {
-            return WiFi.subnetMask();
-        }
-#else
-        return WiFi.subnetMask();
-#endif
-    }
-    template <typename T = S>
-    auto macAddress(uint8_t* mac) -> std::enable_if_t<std::is_same<T, WiFiUDP>::value>
-    {
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
-        if( WiFi.getMode() == WIFI_AP ) {
-            WiFi.softAPmacAddress(mac);
-        } else {
-            WiFi.macAddress(mac);
-        }
-#else
-        WiFi.macAddress(mac);
-#endif
-    }
-#endif  // ARTNET_ENABLE_WIFI
+// #ifdef ARTNET_ENABLE_WIFI
+//     template <typename T = S>
+//     auto localIP() -> std::enable_if_t<std::is_same<T, WiFiUDP>::value, IPAddress>
+//     {
+// #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
+//         if( WiFi.getMode() == WIFI_AP ) {
+//             return WiFi.softAPIP();
+//         } else {
+//             return WiFi.localIP();
+//         }
+// #else
+//         return WiFi.localIP();
+// #endif
+//     }
+//     template <typename T = S>
+//     auto subnetMask() -> std::enable_if_t<std::is_same<T, WiFiUDP>::value, IPAddress>
+//     {
+// #if defined(ARDUINO_ARCH_ESP32)
+//         if( WiFi.getMode() == WIFI_AP ) {
+//             return WiFi.softAPSubnetMask();
+//         } else {
+//             return WiFi.subnetMask();
+//         }
+// #else
+//         return WiFi.subnetMask();
+// #endif
+//     }
+//     template <typename T = S>
+//     auto macAddress(uint8_t* mac) -> std::enable_if_t<std::is_same<T, WiFiUDP>::value>
+//     {
+// #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
+//         if( WiFi.getMode() == WIFI_AP ) {
+//             WiFi.softAPmacAddress(mac);
+//         } else {
+//             WiFi.macAddress(mac);
+//         }
+// #else
+//         WiFi.macAddress(mac);
+// #endif
+//     }
+// #endif  // ARTNET_ENABLE_WIFI
 
+// #ifdef ARTNET_ENABLE_ETHER
+//     template <typename T = S>
+//     auto localIP() -> std::enable_if_t<std::is_same<T, EthernetUDP>::value, IPAddress>
+//     {
+//         return Ethernet.localIP();
+//     }
+//     template <typename T = S>
+//     auto subnetMask() -> std::enable_if_t<std::is_same<T, EthernetUDP>::value, IPAddress>
+//     {
+//         return Ethernet.subnetMask();
+//     }
+//     template <typename T = S>
+//     inline auto macAddress(uint8_t* mac) -> std::enable_if_t<std::is_same<T, EthernetUDP>::value>
+//     {
+//         Ethernet.MACAddress(mac);
+//     }
+// #endif  // ARTNET_ENABLE_ETHER
 #ifdef ARTNET_ENABLE_ETHER
-    template <typename T = S>
-    auto localIP() -> std::enable_if_t<std::is_same<T, EthernetUDP>::value, IPAddress>
+#warning "ARTNET_ENABLE_ETHER"
+#endif
+    // Метод для получения локального IP
+    auto localIP() -> typename std::enable_if_t<
+        std::is_same<S, WiFiUDP>::value || std::is_same<S, EthernetUDP>::value,
+        IPAddress>
     {
-        return Ethernet.localIP();
+        if constexpr (std::is_same<S, WiFiUDP>::value) {
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
+            if( WiFi.getMode() == WIFI_AP ) {
+                return WiFi.softAPIP();
+            }
+#endif
+            return WiFi.localIP();
+        } else if constexpr (std::is_same<S, EthernetUDP>::value) {
+            return Ethernet.localIP();
+        }
     }
-    template <typename T = S>
-    auto subnetMask() -> std::enable_if_t<std::is_same<T, EthernetUDP>::value, IPAddress>
+
+    // Метод для получения маски подсети
+    auto subnetMask() -> typename std::enable_if_t<
+        std::is_same<S, WiFiUDP>::value || std::is_same<S, EthernetUDP>::value,
+        IPAddress>
     {
-        return Ethernet.subnetMask();
+        if constexpr (std::is_same<S, WiFiUDP>::value) {
+#if defined(ARDUINO_ARCH_ESP32)
+            if( WiFi.getMode() == WIFI_AP ) {
+                return WiFi.softAPSubnetMask();
+            }
+#endif
+            return WiFi.subnetMask();
+        } else if constexpr (std::is_same<S, EthernetUDP>::value) {
+            return Ethernet.subnetMask();
+        }
     }
-    template <typename T = S>
-    inline auto macAddress(uint8_t* mac) -> std::enable_if_t<std::is_same<T, EthernetUDP>::value>
-    {
-        Ethernet.MACAddress(mac);
+
+    // Метод для получения MAC-адреса
+    void macAddress(uint8_t* mac) {
+        if constexpr (std::is_same<S, WiFiUDP>::value) {
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_RP2040)
+            if( WiFi.getMode() == WIFI_AP ) {
+                WiFi.softAPmacAddress(mac);
+            } else {
+                WiFi.macAddress(mac);
+            }
+#else
+            WiFi.macAddress(mac);
+#endif
+        } else if constexpr (std::is_same<S, EthernetUDP>::value) {
+            Ethernet.MACAddress(mac);
+        }
     }
-#endif  // ARTNET_ENABLE_ETHER
+
 
 #ifdef ARTNET_ENABLE_ETH
     template <typename T = S>
